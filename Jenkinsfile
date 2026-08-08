@@ -3,8 +3,8 @@ pipeline {
 
     environment {
         IMAGE_NAME = 'devflow-backend'
-        IMAGE_TAG = "${BUILD_NUMBER}"
-        REGISTRY = 'localhost:5000'
+        IMAGE_TAG  = "${BUILD_NUMBER}"
+        REGISTRY   = 'mehdihsb.azurecr.io'
     }
 
     stages {
@@ -34,17 +34,31 @@ pipeline {
         stage('Build Multi-Arch Image') {
             steps {
                 dir('backend') {
-                    sh '''
-                        docker buildx use multiarch
-                        docker buildx inspect multiarch --bootstrap
+                    withCredentials([
+                        usernamePassword(
+                            credentialsId: 'mehdihsb-acr',
+                            usernameVariable: 'ACR_USERNAME',
+                            passwordVariable: 'ACR_PASSWORD'
+                        )
+                    ]) {
+                        sh '''
+                            set -e
 
-                        docker buildx build \
-                            --platform linux/amd64,linux/arm64 \
-                            -t ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} \
-                            -t ${REGISTRY}/${IMAGE_NAME}:latest \
-                            --push \
-                            .
-                    '''
+                            echo "$ACR_PASSWORD" | docker login "$REGISTRY" \
+                                --username "$ACR_USERNAME" \
+                                --password-stdin
+
+                            docker buildx use multiarch
+                            docker buildx inspect multiarch --bootstrap
+
+                            docker buildx build \
+                                --platform linux/amd64,linux/arm64 \
+                                -t ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} \
+                                -t ${REGISTRY}/${IMAGE_NAME}:latest \
+                                --push \
+                                .
+                        '''
+                    }
                 }
             }
         }
@@ -62,6 +76,8 @@ pipeline {
     post {
         success {
             echo 'DevFlow multi-architecture CI pipeline completed successfully.'
+            echo "Image: ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
+            echo "Image: ${REGISTRY}/${IMAGE_NAME}:latest"
         }
 
         failure {
@@ -69,6 +85,7 @@ pipeline {
         }
 
         always {
+            sh 'docker logout ${REGISTRY} || true'
             sh 'docker images ${IMAGE_NAME} || true'
         }
     }
