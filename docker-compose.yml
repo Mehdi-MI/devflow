@@ -1,5 +1,4 @@
 services:
-
   postgres:
     image: postgres:17
     container_name: devflow-postgres
@@ -7,8 +6,8 @@ services:
 
     environment:
       POSTGRES_DB: devflow
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
 
     ports:
       - "5432:5432"
@@ -17,7 +16,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
 
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d devflow"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d devflow"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -37,8 +36,8 @@ services:
 
     environment:
       DB_URL: jdbc:postgresql://postgres:5432/devflow
-      DB_USERNAME: postgres
-      DB_PASSWORD: postgres
+      DB_USERNAME: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
 
     depends_on:
       postgres:
