@@ -4,6 +4,7 @@ pipeline {
     environment {
         IMAGE_NAME = 'devflow-backend'
         IMAGE_TAG = "${BUILD_NUMBER}"
+        REGISTRY = 'localhost:5000'
     }
 
     stages {
@@ -30,29 +31,37 @@ pipeline {
             }
         }
 
-        stage('Docker Build') {
+        stage('Build Multi-Arch Image') {
             steps {
                 dir('backend') {
-                    sh """
-                        docker build \
-                            -t ${IMAGE_NAME}:${IMAGE_TAG} \
-                            -t ${IMAGE_NAME}:latest \
+                    sh '''
+                        docker buildx use multiarch
+                        docker buildx inspect multiarch --bootstrap
+
+                        docker buildx build \
+                            --platform linux/amd64,linux/arm64 \
+                            -t ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} \
+                            -t ${REGISTRY}/${IMAGE_NAME}:latest \
+                            --push \
                             .
-                    """
+                    '''
                 }
             }
         }
 
-        stage('Docker Verify') {
+        stage('Verify Multi-Arch Image') {
             steps {
-                sh 'docker image inspect ${IMAGE_NAME}:${IMAGE_TAG}'
+                sh '''
+                    docker buildx imagetools inspect \
+                        ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
+                '''
             }
         }
     }
 
     post {
         success {
-            echo 'DevFlow CI pipeline completed successfully.'
+            echo 'DevFlow multi-architecture CI pipeline completed successfully.'
         }
 
         failure {
