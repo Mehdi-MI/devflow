@@ -1,0 +1,72 @@
+trigger: none
+
+pr: none
+
+resources:
+  containers:
+    - container: devflow
+      type: acr
+      azureSubscription: mehdihsb-acr
+      resourceGroup: rg-cicd-spain
+      registry: mehdihsb
+      repository: devflow-backend
+      trigger:
+        tags:
+          include:
+            - latest
+
+variables:
+  containerRegistry: mehdihsb.azurecr.io
+  imageRepository: devflow-backend
+  webAppName: azure-cicd-mehdi
+  resourceGroup: rg-cicd-spain
+
+stages:
+
+  - stage: Deploy
+    displayName: Deploy DevFlow to Azure App Service
+
+    jobs:
+      - deployment: Deploy
+        displayName: Deploy DevFlow container
+
+        environment: production
+
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+
+                - checkout: none
+
+                - task: AzureWebAppContainer@1
+                  displayName: Deploy DevFlow container
+                  inputs:
+                    azureSubscription: mehdihsb-acr
+                    appName: $(webAppName)
+                    containers: |
+                      $(containerRegistry)/$(imageRepository):latest
+
+                - bash: |
+                    set -e
+
+                    echo "Waiting for App Service..."
+                    sleep 20
+
+                    echo "Checking DevFlow health endpoint..."
+
+                    response=$(curl -sS -o /tmp/health.json \
+                      -w "%{http_code}" \
+                      "https://$(webAppName).azurewebsites.net/actuator/health")
+
+                    cat /tmp/health.json
+
+                    if [ "$response" != "200" ]; then
+                      echo "Health check failed with HTTP $response"
+                      exit 1
+                    fi
+
+                    grep -q '"status":"UP"' /tmp/health.json
+
+                    echo "DevFlow deployment verified successfully."
+                  displayName: Verify DevFlow health
