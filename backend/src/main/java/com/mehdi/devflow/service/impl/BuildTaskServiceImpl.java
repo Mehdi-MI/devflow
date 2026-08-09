@@ -9,6 +9,8 @@ import com.mehdi.devflow.mapper.BuildTaskMapper;
 import com.mehdi.devflow.repository.BuildTaskRepository;
 import com.mehdi.devflow.service.BuildTaskService;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +22,8 @@ import java.util.UUID;
 @Transactional
 public class BuildTaskServiceImpl implements BuildTaskService {
 
+    private static final Logger log = LoggerFactory.getLogger(BuildTaskServiceImpl.class);
+
     private final BuildTaskRepository repository;
     private final BuildTaskMapper mapper;
 
@@ -30,12 +34,16 @@ public class BuildTaskServiceImpl implements BuildTaskService {
 
         BuildTask savedTask = repository.save(task);
 
+        log.info("Created build task with id={}", savedTask.getId());
+
         return mapper.toResponse(savedTask);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<BuildTaskResponse> getAllTasks() {
+
+        log.debug("Retrieving all build tasks");
 
         return repository.findAll()
                 .stream()
@@ -48,8 +56,10 @@ public class BuildTaskServiceImpl implements BuildTaskService {
     public BuildTaskResponse getTaskById(UUID id) {
 
         BuildTask task = repository.findById(id)
-                .orElseThrow(() ->
-                        new ResourceNotFoundException("Build task not found: " + id));
+                .orElseThrow(() -> {
+                    log.warn("Build task not found with id={}", id);
+                    return new ResourceNotFoundException("Build task not found: " + id);
+                });
 
         return mapper.toResponse(task);
     }
@@ -58,8 +68,10 @@ public class BuildTaskServiceImpl implements BuildTaskService {
     public BuildTaskResponse updateTask(UUID id, UpdateBuildTaskRequest request) {
 
         BuildTask task = repository.findById(id)
-                .orElseThrow(() ->
-                        new ResourceNotFoundException("Build task not found: " + id));
+                .orElseThrow(() -> {
+                    log.warn("Build task not found with id={}", id);
+                    return new ResourceNotFoundException("Build task not found: " + id);
+                });
 
         if (request.getName() != null) {
             task.setName(request.getName());
@@ -83,6 +95,8 @@ public class BuildTaskServiceImpl implements BuildTaskService {
 
         BuildTask updatedTask = repository.save(task);
 
+        log.info("Updated build task with id={}", updatedTask.getId());
+
         return mapper.toResponse(updatedTask);
     }
 
@@ -90,9 +104,12 @@ public class BuildTaskServiceImpl implements BuildTaskService {
     public void deleteTask(UUID id) {
 
         if (!repository.existsById(id)) {
+            log.warn("Cannot delete build task because it was not found, id={}", id);
             throw new ResourceNotFoundException("Build task not found: " + id);
         }
 
         repository.deleteById(id);
+
+        log.info("Deleted build task with id={}", id);
     }
 }
