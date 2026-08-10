@@ -36,7 +36,7 @@ pipeline {
                 dir('backend') {
                     withCredentials([
                         usernamePassword(
-                            credentialsId: 'mehdihsb-acr',
+                            credentialsId: 'devflow-jenkins-acr',
                             usernameVariable: 'ACR_USERNAME',
                             passwordVariable: 'ACR_PASSWORD'
                         )
