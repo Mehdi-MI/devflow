@@ -562,3 +562,7 @@ The project is designed to reduce manual DevOps operations while providing a con
 ## License
 
 This project is licensed under the terms specified in [LICENSE](LICENSE).
+
+## CI/CD Validation
+
+The Devflow deployment has been validated end-to-end on Azure.
