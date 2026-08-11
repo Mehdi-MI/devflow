@@ -8,7 +8,7 @@ resource "azurerm_container_registry" "devflow" {
   resource_group_name = azurerm_resource_group.devflow.name
   location            = azurerm_resource_group.devflow.location
   sku                 = "Basic"
-  admin_enabled       = true
+  admin_enabled       = false
 }
 
 resource "azurerm_service_plan" "devflow" {
