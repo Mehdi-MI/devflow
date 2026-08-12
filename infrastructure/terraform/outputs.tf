@@ -22,3 +22,18 @@ output "app_service_principal_id" {
   description = "System-assigned managed identity principal ID"
   value       = azurerm_linux_web_app.devflow.identity[0].principal_id
 }
+
+output "jenkins_private_ip" {
+  description = "Private IP address of the Jenkins VM"
+  value       = azurerm_linux_virtual_machine.jenkins.private_ip_address
+}
+
+output "jenkins_public_ip" {
+  description = "Public IP address of the Jenkins VM"
+  value       = azurerm_linux_virtual_machine.jenkins.public_ip_address
+}
+
+output "jenkins_vm_name" {
+  description = "Jenkins virtual machine name"
+  value       = azurerm_linux_virtual_machine.jenkins.name
+}
