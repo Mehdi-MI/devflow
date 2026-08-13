@@ -138,8 +138,15 @@ pipeline {
                                 --username "$ACR_USERNAME" \
                                 --password-stdin
 
-                            docker buildx use multiarch
-                            docker buildx inspect multiarch --bootstrap
+                            if docker buildx inspect multiarch >/dev/null 2>&1; then
+                                docker buildx use multiarch
+                            else
+                                docker buildx create \
+                                    --name multiarch \
+                                    --driver docker-container \
+                                    --use \
+                                    --bootstrap
+                            fi
 
                             docker buildx build \
                                 --platform linux/amd64,linux/arm64 \
