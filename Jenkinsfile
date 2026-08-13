@@ -104,7 +104,7 @@ pipeline {
                     echo "=== NETWORK ==="
 
                     docker network inspect "$CI_NETWORK" \
-                        --format '{{range .Containers}}{{.Name}} {{.IPv4Address}}{{println}}'
+                        --format='{{range .Containers}}{{.Name}} {{.IPv4Address}}{{println}}'
                 '''
             }
         }
