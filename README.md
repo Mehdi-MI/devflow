@@ -1,4 +1,4 @@
-#DevFlow
+# DevFlow
 **DevFlow** is a production-oriented Internal Developer Platform designed to automate the CI/CD lifecycle of a containerized Spring Boot application.
 
 The platform combines **GitHub, Jenkins, Docker Buildx, Azure Container Registry, Azure DevOps Pipelines, Azure App Service, Terraform, PostgreSQL, Prometheus, and Grafana** into an end-to-end DevOps workflow.
@@ -1004,12 +1004,12 @@ The repository is maintained through Git commits and remote synchronization with
 
 # Current Release State
 
-The project has completed its final production-readiness validation.
+The project has completed its final end-to-end validation and portfolio readiness review.
 
 Latest commit:
 
 ```text
-09cba71 Harden Actuator endpoint exposure
+7871e56 Create Jenkins Buildx builder automatically
 ```
 
 Repository status:
@@ -1027,7 +1027,10 @@ The project has successfully passed:
 * Git diff validation
 * Git security audit
 * Jenkins CI validation
-* Multi-architecture Docker build
+* Automated PostgreSQL integration-test environment
+* Automatic Jenkins Docker Buildx builder recovery
+* Multi-architecture Docker builds for linux/amd64 and linux/arm64
+* Multi-architecture Docker image publishing
 * Azure Container Registry validation
 * Azure App Service validation
 * Production health validation
