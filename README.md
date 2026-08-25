@@ -1,4 +1,5 @@
 # DevFlow
+
 **DevFlow** is a production-oriented Internal Developer Platform designed to automate the CI/CD lifecycle of a containerized Spring Boot application.
 
 The platform combines **GitHub, Jenkins, Docker Buildx, Azure Container Registry, Azure DevOps Pipelines, Azure App Service, Terraform, PostgreSQL, Prometheus, and Grafana** into an end-to-end DevOps workflow.
@@ -50,9 +51,9 @@ The goal is to demonstrate a complete, reproducible CI/CD platform rather than a
                                  ▼
                     ┌──────────────────────────┐
                     │    Azure App Service     │
-                    │      Linux Container      │
+                    │     Linux Container      │
                     │                          │
-                    │    Spring Boot API        │
+                    │     Spring Boot API      │
                     └────────────┬─────────────┘
                                  │
                          ┌───────┴────────┐
@@ -100,6 +101,7 @@ The goal is to demonstrate a complete, reproducible CI/CD platform rather than a
 * Actuator endpoint exposure hardened
 * Terraform state and variable files excluded from Git
 * Automated backend testing
+* Container and database resilience validation
 * Production-readiness validation
 
 ---
@@ -258,8 +260,8 @@ Install:
 * Docker Compose
 * Git
 * Gradle Wrapper
-* Azure CLI (for Azure operations)
-* Terraform (for infrastructure operations)
+* Azure CLI for Azure operations
+* Terraform for infrastructure operations
 
 ---
 
@@ -317,7 +319,7 @@ Expected result:
 BUILD SUCCESSFUL
 ```
 
-The final project validation successfully completed the backend test suite.
+The backend test suite was successfully validated during the final project review.
 
 ---
 
@@ -338,7 +340,6 @@ Build locally:
 
 ```bash
 cd backend
-
 docker build -t devflow-backend:local .
 ```
 
@@ -360,13 +361,28 @@ Validate the Compose configuration:
 docker compose config -q
 ```
 
-Start the development environment:
+Start the complete local platform:
 
 ```bash
 docker compose up -d
 ```
 
-Stop it:
+The local stack includes:
+
+```text
+Spring Boot Backend
+PostgreSQL
+Prometheus
+Grafana
+```
+
+Check the running services:
+
+```bash
+docker compose ps
+```
+
+Stop the environment:
 
 ```bash
 docker compose down
@@ -430,7 +446,7 @@ The pipeline also verifies the published image using:
 docker buildx imagetools inspect
 ```
 
-The Jenkins pipeline was successfully validated with Gradle build and test stages.
+The Jenkins pipeline was successfully validated with Gradle build and test stages, automated PostgreSQL integration support, Docker Buildx builder recovery, and multi-architecture image publishing.
 
 ---
 
@@ -448,7 +464,7 @@ Repository:
 devflow-backend
 ```
 
-Available tags include versioned build tags and:
+Available images include versioned build tags and:
 
 ```text
 latest
@@ -464,7 +480,7 @@ az acr repository show-tags \
   --output table
 ```
 
-The final validation confirmed that the ACR repository contains published image tags.
+The final validation confirmed that the ACR repository contains published multi-architecture image tags.
 
 ---
 
@@ -495,6 +511,8 @@ The App Service was verified as:
 ```text
 Running
 ```
+
+The production health endpoint successfully returned HTTP 200 with status `UP`.
 
 ---
 
@@ -569,13 +587,13 @@ Validate Terraform formatting:
 terraform fmt -check
 ```
 
-Validate configuration:
+Validate the configuration:
 
 ```bash
 terraform validate
 ```
 
-The final production-readiness validation returned:
+The final validation returned:
 
 ```text
 Success! The configuration is valid.
@@ -611,6 +629,14 @@ https://azure-cicd-mehdi.azurewebsites.net/actuator/prometheus
 
 The endpoint was validated successfully with HTTP 200.
 
+The local Prometheus stack successfully verified the backend target:
+
+```text
+job: devflow-backend
+instance: backend:8081
+up: 1
+```
+
 Example metrics include:
 
 ```text
@@ -628,7 +654,16 @@ process_cpu
 system_cpu
 ```
 
-Grafana is included in the project monitoring stack for visualization.
+Grafana is included for visualization.
+
+The final local monitoring validation confirmed:
+
+```text
+Prometheus datasource: configured
+Datasource URL: http://prometheus:9090
+Grafana dashboard: DevFlow Backend Status
+Grafana database: healthy
+```
 
 ---
 
@@ -658,10 +693,10 @@ Expected response:
 }
 ```
 
-The final Azure validation returned:
+The final validation returned:
 
 ```text
-HTTP_STATUS=200
+HTTP_STATUS:200
 ```
 
 with application status:
@@ -669,6 +704,40 @@ with application status:
 ```text
 UP
 ```
+
+---
+
+# Resilience Validation
+
+The local platform was tested for application and database recovery.
+
+## Backend Container Recovery
+
+The backend container was restarted during validation.
+
+Results:
+
+```text
+Backend before restart: HTTP 200
+Backend after restart: HTTP 200
+Application status after recovery: UP
+Database API access after recovery: HTTP 200
+```
+
+## PostgreSQL Recovery
+
+PostgreSQL was restarted while the backend remained running.
+
+Results:
+
+```text
+PostgreSQL after restart: healthy
+Backend health after database recovery: HTTP 200
+Application status: UP
+Database API access after recovery: HTTP 200
+```
+
+This validation demonstrated successful recovery of the application and database services in the Docker Compose environment.
 
 ---
 
@@ -719,6 +788,23 @@ The deployment uses Azure identity-based authentication rather than relying on t
 A dedicated Jenkins identity is used for ACR operations.
 
 This follows the principle of least privilege.
+
+---
+
+## Grafana Authentication
+
+Grafana administrative access was reviewed during final monitoring validation.
+
+The configured Grafana instance successfully authenticated the administrator account and the API verification returned the expected administrative user information.
+
+The monitoring stack was then validated through:
+
+```text
+Grafana health: HTTP 200
+Database: OK
+Prometheus datasource: configured
+DevFlow Backend Status dashboard: available
+```
 
 ---
 
@@ -809,7 +895,7 @@ The complete DevFlow workflow is:
 
 The final production-readiness validation covered:
 
-### Repository
+## Repository
 
 ```text
 Git status: clean
@@ -817,26 +903,49 @@ Branch: develop
 Remote: synchronized
 ```
 
-### Backend
+## Backend
 
 ```text
 Gradle tests: PASS
 ```
 
-### Terraform
+## Terraform
 
 ```text
 terraform validate: PASS
 terraform fmt -check: PASS
 ```
 
-### Docker
+## Docker
 
 ```text
 docker compose config -q: PASS
+All local platform services: RUNNING
+PostgreSQL: HEALTHY
 ```
 
-### Azure
+## Resilience
+
+```text
+Backend container restart: PASS
+Backend health after restart: HTTP 200
+PostgreSQL restart: PASS
+PostgreSQL health after restart: HEALTHY
+Backend recovery after database restart: HTTP 200
+Database API verification: HTTP 200
+```
+
+## Monitoring
+
+```text
+Prometheus backend target: UP
+Prometheus datasource: CONFIGURED
+Grafana dashboard: AVAILABLE
+Grafana health: HTTP 200
+Grafana database: OK
+```
+
+## Azure
 
 ```text
 App Service: Running
@@ -845,7 +954,7 @@ Prometheus endpoint: HTTP 200
 API endpoint: HTTP 200
 ```
 
-### Security
+## Security
 
 ```text
 Actuator info: not exposed
@@ -853,9 +962,10 @@ Actuator metrics: not exposed
 Terraform state: not tracked
 Terraform variables: not tracked
 Secret-named files: not tracked
+ACR admin authentication: disabled
 ```
 
-### CI/CD
+## CI/CD
 
 ```text
 Jenkins build: PASS
@@ -1009,33 +1119,40 @@ The project has completed its final end-to-end validation and portfolio readines
 Latest commit:
 
 ```text
-7871e56 Create Jenkins Buildx builder automatically
+a71cd64 Improve global API error handling
 ```
 
-Repository status:
+Repository status at final validation:
 
 ```text
 develop...origin/develop
 working tree clean
 ```
 
-The project has successfully passed:
+The project successfully passed:
 
 * Backend tests
-* Terraform validation
+* Terraform formatting validation
+* Terraform configuration validation
 * Docker Compose validation
+* Git repository validation
 * Git diff validation
 * Git security audit
 * Jenkins CI validation
 * Automated PostgreSQL integration-test environment
 * Automatic Jenkins Docker Buildx builder recovery
-* Multi-architecture Docker builds for linux/amd64 and linux/arm64
+* Multi-architecture Docker builds for `linux/amd64` and `linux/arm64`
 * Multi-architecture Docker image publishing
 * Azure Container Registry validation
 * Azure App Service validation
 * Production health validation
 * Prometheus endpoint validation
+* Prometheus target validation
+* Grafana authentication and health validation
+* Grafana datasource and dashboard validation
 * Actuator security validation
+* Backend container recovery validation
+* PostgreSQL recovery validation
 * End-to-end CI/CD validation
 
 ---
@@ -1089,10 +1206,12 @@ Monitoring
         +
 Security Hardening
         +
+Resilience Testing
+        +
 Automated Validation
 ```
 
-The project therefore goes beyond a simple Spring Boot application and demonstrates practical integration of software engineering, containerization, CI/CD, cloud infrastructure, observability, and security practices.
+The project therefore goes beyond a simple Spring Boot application and demonstrates practical integration of software engineering, containerization, CI/CD, cloud infrastructure, observability, security practices, and resilience validation.
 
 ---
 
