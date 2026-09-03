@@ -1,10 +1,61 @@
 # DevFlow
 
-**DevFlow** is a production-oriented Internal Developer Platform designed to automate the CI/CD lifecycle of a containerized Spring Boot application.
+**DevFlow** is a production-oriented Internal Developer Platform that automates the CI/CD lifecycle of a containerized Spring Boot application.
 
-The platform combines **GitHub, Jenkins, Docker Buildx, Azure Container Registry, Azure DevOps Pipelines, Azure App Service, Terraform, PostgreSQL, Prometheus, and Grafana** into an end-to-end DevOps workflow.
+It combines **GitHub, Jenkins, Docker Buildx, Azure Container Registry, Azure DevOps Pipelines, Azure App Service, Terraform, PostgreSQL, Prometheus, and Grafana** into a single, reproducible DevOps workflow — from `git push` to a running, monitored service in production.
 
-The goal is to demonstrate a complete, reproducible CI/CD platform rather than a simple application deployment.
+The goal of the project is to demonstrate a complete CI/CD platform, not just a standalone application.
+
+---
+
+## Table of Contents
+
+* [Overview](#overview)
+* [Architecture](#architecture)
+* [Features](#features)
+* [Technology Stack](#technology-stack)
+* [Quick Start](#quick-start)
+* [Getting Started](#getting-started)
+
+  * [Prerequisites](#prerequisites)
+  * [Clone the Repository](#clone-the-repository)
+  * [Option A — Run Everything with Docker Compose](#option-a--run-everything-with-docker-compose)
+  * [Option B — Run the Backend Manually](#option-b--run-the-backend-manually)
+  * [Run Tests](#run-tests)
+  * [Build the Application](#build-the-application)
+* [REST API](#rest-api)
+* [Backend Architecture](#backend-architecture)
+* [Project Structure](#project-structure)
+* [Environment Configuration](#environment-configuration)
+* [Docker](#docker)
+* [Jenkins CI Pipeline](#jenkins-ci-pipeline)
+* [Infrastructure as Code (Terraform)](#infrastructure-as-code-terraform)
+* [Azure Deployment](#azure-deployment)
+
+  * [Azure Container Registry](#azure-container-registry)
+  * [Azure App Service](#azure-app-service)
+  * [Azure DevOps Deployment](#azure-devops-deployment)
+* [Monitoring](#monitoring)
+* [Security Hardening](#security-hardening)
+* [Troubleshooting](#troubleshooting)
+* [Useful Commands](#useful-commands)
+* [Git Branch Strategy](#git-branch-strategy)
+* [Contributing](#contributing)
+* [Future Improvements](#future-improvements)
+* [Project Validation Report](#project-validation-report)
+* [Author](#author)
+* [License](#license)
+
+---
+
+## Overview
+
+DevFlow is split into two parts that work together:
+
+1. **Application** — a Spring Boot REST API (`backend/`) for managing "build tasks", backed by PostgreSQL.
+2. **Platform** — everything around the application: Docker images, a Jenkins CI pipeline, Terraform-managed Azure infrastructure, an Azure DevOps deployment pipeline, and Prometheus/Grafana monitoring.
+
+You can run just the application locally in a couple of minutes (see [Quick Start](#quick-start)), or explore the full platform end to end.
 
 ---
 
@@ -73,42 +124,30 @@ The goal is to demonstrate a complete, reproducible CI/CD platform rather than a
 
 ---
 
-# Features
+## Features
 
 * Spring Boot REST API for build-task management
 * PostgreSQL persistence
-* Layered backend architecture
-* DTO, Mapper, Service and Repository patterns
+* Layered backend architecture (Controller → DTO → Mapper → Service → Repository)
 * RESTful CRUD operations
 * Centralized exception handling
 * Bean validation
-* Docker multi-stage image
-* Multi-architecture Docker images
-* Docker Buildx
-* Jenkins CI pipeline
-* Azure Container Registry
-* Azure App Service deployment
-* Azure DevOps deployment pipeline
+* Multi-stage, multi-architecture Docker image (via Docker Buildx)
+* Jenkins CI pipeline with automated tests
+* Azure Container Registry + Azure App Service deployment
+* Azure DevOps deployment pipeline with post-deploy health checks
 * Terraform Infrastructure as Code
-* Prometheus metrics
-* Grafana monitoring
-* Application logging
-* Health and readiness checks
-* GitHub integration
-* Automated deployment verification
-* Managed identity based Azure authentication
-* ACR admin authentication disabled
-* Actuator endpoint exposure hardened
+* Prometheus metrics and Grafana dashboards
+* Health and readiness checks (Spring Boot Actuator)
+* Managed identity based Azure authentication (no ACR admin credentials)
+* Hardened Actuator endpoint exposure
 * Terraform state and variable files excluded from Git
-* Automated backend testing
-* Container and database resilience validation
-* Production-readiness validation
 
 ---
 
-# Technology Stack
+## Technology Stack
 
-## Backend
+### Backend
 
 | Technology           | Purpose               |
 | -------------------- | --------------------- |
@@ -123,7 +162,7 @@ The goal is to demonstrate a complete, reproducible CI/CD platform rather than a
 | Bean Validation      | Request validation    |
 | Spring Boot Actuator | Health and metrics    |
 
-## DevOps
+### DevOps
 
 | Technology               | Purpose                   |
 | ------------------------ | ------------------------- |
@@ -137,7 +176,7 @@ The goal is to demonstrate a complete, reproducible CI/CD platform rather than a
 | Terraform                | Infrastructure as Code    |
 | Docker Compose           | Local development         |
 
-## Monitoring
+### Monitoring
 
 | Technology           | Purpose                        |
 | -------------------- | ------------------------------ |
@@ -147,30 +186,194 @@ The goal is to demonstrate a complete, reproducible CI/CD platform rather than a
 
 ---
 
-# Backend Architecture
+## Quick Start
+
+The fastest way to see DevFlow running locally is Docker Compose — it starts the backend, PostgreSQL, Prometheus, and Grafana together.
+
+```bash
+git clone https://github.com/Mehdi-MI/devflow.git
+cd devflow
+git checkout develop
+
+docker compose up -d
+```
+
+Then check that everything is healthy:
+
+```bash
+# Backend health
+curl http://localhost:8081/actuator/health
+
+# Build-task API
+curl http://localhost:8081/api/build-tasks
+```
+
+| Service     | URL                                                     |
+| ----------- | ------------------------------------------------------- |
+| Backend API | http://localhost:8081/api/build-tasks                   |
+| Health      | http://localhost:8081/actuator/health                   |
+| Prometheus  | http://localhost:9090                                   |
+| Grafana     | http://localhost:3000 (default login `admin` / `admin`) |
+
+Stop everything with `docker compose down`. For more detail — running without Docker, running tests, configuring the database, etc. — see [Getting Started](#getting-started) below.
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+Only the first four are required to run the application locally. The rest are only needed if you want to work with the infrastructure/CI parts of the project.
+
+| Tool                                 | Required for                                             |
+| ------------------------------------ | -------------------------------------------------------- |
+| Git                                  | Cloning the repository                                   |
+| Java 21 (JDK)                        | Building/running the backend directly                    |
+| Docker & Docker Compose              | Running the app and its dependencies in containers       |
+| Gradle Wrapper (`gradlew`, included) | Building the backend — no separate Gradle install needed |
+| Azure CLI                            | Interacting with Azure resources (optional)              |
+| Terraform                            | Managing the Azure infrastructure (optional)             |
+
+### Clone the Repository
+
+```bash
+git clone https://github.com/Mehdi-MI/devflow.git
+cd devflow
+git checkout develop
+```
+
+> If you have an SSH key configured on GitHub, you can use `git@github.com:Mehdi-MI/devflow.git` instead.
+
+There are two ways to run the backend locally: with Docker Compose (recommended, no local Java/PostgreSQL setup needed), or manually with Gradle and your own PostgreSQL instance.
+
+### Option A — Run Everything with Docker Compose
+
+```bash
+docker compose up -d
+```
+
+This starts the backend, PostgreSQL, Prometheus, and Grafana. Check status:
+
+```bash
+docker compose ps
+```
+
+Stop everything:
+
+```bash
+docker compose down
+```
+
+If you only want the database (for example, to run the backend from your IDE):
+
+```bash
+docker compose up -d postgres
+```
+
+### Option B — Run the Backend Manually
+
+1. Start PostgreSQL (via Docker Compose, or your own local instance) so it's reachable at `localhost:5432` with database `devflow`.
+2. Run the backend:
+
+```bash
+cd backend
+./gradlew bootRun
+```
+
+The application starts on:
+
+```text
+http://localhost:8081
+```
+
+### Run Tests
+
+```bash
+cd backend
+./gradlew clean test
+```
+
+Expected result:
+
+```text
+BUILD SUCCESSFUL
+```
+
+### Build the Application
+
+```bash
+cd backend
+./gradlew clean build
+```
+
+Expected result:
+
+```text
+BUILD SUCCESSFUL
+```
+
+The resulting JAR is produced under `backend/build/libs/`.
+
+---
+
+## REST API
+
+The application exposes the following build-task endpoints:
+
+| Method | Endpoint                | Description         |
+| ------ | ----------------------- | ------------------- |
+| POST   | `/api/build-tasks`      | Create a build task |
+| GET    | `/api/build-tasks`      | List build tasks    |
+| GET    | `/api/build-tasks/{id}` | Get a build task    |
+| PUT    | `/api/build-tasks/{id}` | Update a build task |
+| DELETE | `/api/build-tasks/{id}` | Delete a build task |
+
+Local example:
+
+```bash
+curl http://localhost:8081/api/build-tasks
+```
+
+Production endpoint:
+
+```bash
+curl https://azure-cicd-mehdi.azurewebsites.net/api/build-tasks
+```
+
+### Build Task Model
+
+A build task contains:
+
+```text
+id
+name
+repositoryUrl
+branch
+status
+logs
+createdAt
+startedAt
+completedAt
+```
+
+Supported statuses:
+
+```text
+PENDING
+RUNNING
+SUCCESS
+FAILED
+```
+
+---
+
+## Backend Architecture
 
 The backend follows a layered architecture:
 
 ```text
-Controller
-    │
-    ▼
-DTO
-    │
-    ▼
-Mapper
-    │
-    ▼
-Service
-    │
-    ▼
-Repository
-    │
-    ▼
-PostgreSQL
+Controller → DTO → Mapper → Service → Repository → PostgreSQL
 ```
-
-The application contains:
 
 ```text
 backend/
@@ -196,789 +399,7 @@ backend/
 
 ---
 
-# REST API
-
-The application exposes the following build-task endpoints.
-
-| Method | Endpoint                | Description         |
-| ------ | ----------------------- | ------------------- |
-| POST   | `/api/build-tasks`      | Create a build task |
-| GET    | `/api/build-tasks`      | List build tasks    |
-| GET    | `/api/build-tasks/{id}` | Get a build task    |
-| PUT    | `/api/build-tasks/{id}` | Update a build task |
-| DELETE | `/api/build-tasks/{id}` | Delete a build task |
-
-Example:
-
-```bash
-curl http://localhost:8081/api/build-tasks
-```
-
-Production endpoint:
-
-```bash
-curl https://azure-cicd-mehdi.azurewebsites.net/api/build-tasks
-```
-
----
-
-# Build Task Model
-
-A build task contains information such as:
-
-```text
-id
-name
-repositoryUrl
-branch
-status
-logs
-createdAt
-startedAt
-completedAt
-```
-
-Supported statuses:
-
-```text
-PENDING
-RUNNING
-SUCCESS
-FAILED
-```
-
----
-
-# Local Development
-
-## Prerequisites
-
-Install:
-
-* Java 21
-* Docker
-* Docker Compose
-* Git
-* Gradle Wrapper
-* Azure CLI for Azure operations
-* Terraform for infrastructure operations
-
----
-
-## Clone the Repository
-
-```bash
-git clone git@github.com:Mehdi-MI/devflow.git
-cd devflow
-```
-
----
-
-# Start PostgreSQL
-
-The project provides Docker Compose configuration for local development.
-
-```bash
-docker compose up -d postgres
-```
-
-Check the containers:
-
-```bash
-docker compose ps
-```
-
----
-
-# Run the Backend
-
-```bash
-cd backend
-./gradlew bootRun
-```
-
-The application runs on:
-
-```text
-http://localhost:8081
-```
-
----
-
-# Run Tests
-
-From the backend directory:
-
-```bash
-./gradlew clean test
-```
-
-Expected result:
-
-```text
-BUILD SUCCESSFUL
-```
-
-The backend test suite was successfully validated during the final project review.
-
----
-
-# Build the Application
-
-```bash
-cd backend
-./gradlew clean build
-```
-
----
-
-# Docker
-
-The backend uses a multi-stage Docker build.
-
-Build locally:
-
-```bash
-cd backend
-docker build -t devflow-backend:local .
-```
-
-Run:
-
-```bash
-docker run \
-  -p 8081:8081 \
-  devflow-backend:local
-```
-
----
-
-# Docker Compose
-
-Validate the Compose configuration:
-
-```bash
-docker compose config -q
-```
-
-Start the complete local platform:
-
-```bash
-docker compose up -d
-```
-
-The local stack includes:
-
-```text
-Spring Boot Backend
-PostgreSQL
-Prometheus
-Grafana
-```
-
-Check the running services:
-
-```bash
-docker compose ps
-```
-
-Stop the environment:
-
-```bash
-docker compose down
-```
-
----
-
-# Jenkins CI Pipeline
-
-Jenkins provides the continuous integration layer.
-
-The pipeline performs:
-
-```text
-Checkout
-   │
-   ▼
-Gradle Build
-   │
-   ▼
-Automated Tests
-   │
-   ▼
-Docker Buildx
-   │
-   ▼
-Multi-Architecture Image
-   │
-   ▼
-Azure Container Registry
-   │
-   ▼
-Image Verification
-```
-
-The Jenkins pipeline builds:
-
-```text
-linux/amd64
-linux/arm64
-```
-
-using Docker Buildx.
-
-The resulting image is pushed to:
-
-```text
-mehdihsb.azurecr.io/devflow-backend
-```
-
-with:
-
-```text
-:<BUILD_NUMBER>
-:latest
-```
-
-The pipeline also verifies the published image using:
-
-```bash
-docker buildx imagetools inspect
-```
-
-The Jenkins pipeline was successfully validated with Gradle build and test stages, automated PostgreSQL integration support, Docker Buildx builder recovery, and multi-architecture image publishing.
-
----
-
-# Azure Container Registry
-
-The project uses Azure Container Registry:
-
-```text
-mehdihsb.azurecr.io
-```
-
-Repository:
-
-```text
-devflow-backend
-```
-
-Available images include versioned build tags and:
-
-```text
-latest
-```
-
-Check available images:
-
-```bash
-az acr repository show-tags \
-  --name mehdihsb \
-  --repository devflow-backend \
-  --orderby time_desc \
-  --output table
-```
-
-The final validation confirmed that the ACR repository contains published multi-architecture image tags.
-
----
-
-# Azure App Service
-
-The production application is deployed to Azure App Service.
-
-Application:
-
-```text
-azure-cicd-mehdi
-```
-
-Resource group:
-
-```text
-rg-cicd-spain
-```
-
-Production URL:
-
-```text
-https://azure-cicd-mehdi.azurewebsites.net
-```
-
-The App Service was verified as:
-
-```text
-Running
-```
-
-The production health endpoint successfully returned HTTP 200 with status `UP`.
-
----
-
-# Azure DevOps Deployment
-
-Azure Pipelines is responsible for deploying the image from ACR to Azure App Service.
-
-Deployment flow:
-
-```text
-Jenkins
-   │
-   │ build + test
-   ▼
-Docker Buildx
-   │
-   │ push
-   ▼
-Azure Container Registry
-   │
-   │ latest image
-   ▼
-Azure DevOps Pipeline
-   │
-   │ AzureWebAppContainer
-   ▼
-Azure App Service
-```
-
-The deployment pipeline performs a post-deployment health check:
-
-```bash
-curl \
-  https://azure-cicd-mehdi.azurewebsites.net/actuator/health
-```
-
-The deployment is considered successful only when the application returns:
-
-```json
-{
-  "status": "UP"
-}
-```
-
-The end-to-end Azure deployment was validated successfully.
-
----
-
-# Infrastructure as Code
-
-Azure infrastructure is managed with Terraform.
-
-Terraform files are located in:
-
-```text
-infrastructure/terraform/
-```
-
-Main files:
-
-```text
-main.tf
-variables.tf
-outputs.tf
-versions.tf
-.gitignore
-```
-
-Validate Terraform formatting:
-
-```bash
-terraform fmt -check
-```
-
-Validate the configuration:
-
-```bash
-terraform validate
-```
-
-The final validation returned:
-
-```text
-Success! The configuration is valid.
-```
-
-Terraform state and variable files are intentionally excluded from Git:
-
-```text
-terraform.tfstate
-terraform.tfstate.backup
-terraform.tfvars
-```
-
-This prevents sensitive infrastructure state and configuration from being committed to the repository.
-
----
-
-# Monitoring
-
-DevFlow exposes Prometheus metrics through Spring Boot Actuator.
-
-Prometheus endpoint:
-
-```text
-/actuator/prometheus
-```
-
-Production:
-
-```text
-https://azure-cicd-mehdi.azurewebsites.net/actuator/prometheus
-```
-
-The endpoint was validated successfully with HTTP 200.
-
-The local Prometheus stack successfully verified the backend target:
-
-```text
-job: devflow-backend
-instance: backend:8081
-up: 1
-```
-
-Example metrics include:
-
-```text
-application_ready_time_seconds
-application_started_time_seconds
-disk_free_bytes
-disk_total_bytes
-executor_active_threads
-hikaricp_connections
-http_server_requests
-jdbc_connections
-jvm_memory
-jvm_threads
-process_cpu
-system_cpu
-```
-
-Grafana is included for visualization.
-
-The final local monitoring validation confirmed:
-
-```text
-Prometheus datasource: configured
-Datasource URL: http://prometheus:9090
-Grafana dashboard: DevFlow Backend Status
-Grafana database: healthy
-```
-
----
-
-# Health Monitoring
-
-The production health endpoint is:
-
-```text
-/actuator/health
-```
-
-Production:
-
-```text
-https://azure-cicd-mehdi.azurewebsites.net/actuator/health
-```
-
-Expected response:
-
-```json
-{
-  "groups": [
-    "liveness",
-    "readiness"
-  ],
-  "status": "UP"
-}
-```
-
-The final validation returned:
-
-```text
-HTTP_STATUS:200
-```
-
-with application status:
-
-```text
-UP
-```
-
----
-
-# Resilience Validation
-
-The local platform was tested for application and database recovery.
-
-## Backend Container Recovery
-
-The backend container was restarted during validation.
-
-Results:
-
-```text
-Backend before restart: HTTP 200
-Backend after restart: HTTP 200
-Application status after recovery: UP
-Database API access after recovery: HTTP 200
-```
-
-## PostgreSQL Recovery
-
-PostgreSQL was restarted while the backend remained running.
-
-Results:
-
-```text
-PostgreSQL after restart: healthy
-Backend health after database recovery: HTTP 200
-Application status: UP
-Database API access after recovery: HTTP 200
-```
-
-This validation demonstrated successful recovery of the application and database services in the Docker Compose environment.
-
----
-
-# Security Hardening
-
-Security was explicitly reviewed during the final project phases.
-
-## Actuator Exposure
-
-The application exposes only:
-
-```yaml
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,prometheus
-```
-
-Therefore:
-
-```text
-/actuator/health       → exposed
-/actuator/prometheus   → exposed
-/actuator/info         → not exposed
-/actuator/metrics      → not exposed
-```
-
-The production security validation confirmed:
-
-```text
-/actuator/health      → HTTP 200
-/actuator/prometheus  → HTTP 200
-/actuator/info        → HTTP 500
-/actuator/metrics     → HTTP 500
-```
-
-The latter two are not registered as exposed Actuator endpoints.
-
----
-
-## ACR Authentication
-
-ACR administrative authentication was disabled.
-
-The deployment uses Azure identity-based authentication rather than relying on the ACR administrator account.
-
-A dedicated Jenkins identity is used for ACR operations.
-
-This follows the principle of least privilege.
-
----
-
-## Grafana Authentication
-
-Grafana administrative access was reviewed during final monitoring validation.
-
-The configured Grafana instance successfully authenticated the administrator account and the API verification returned the expected administrative user information.
-
-The monitoring stack was then validated through:
-
-```text
-Grafana health: HTTP 200
-Database: OK
-Prometheus datasource: configured
-DevFlow Backend Status dashboard: available
-```
-
----
-
-## Terraform Secrets
-
-Terraform state and variable files are ignored:
-
-```text
-*.tfstate
-*.tfstate.*
-*.tfvars
-```
-
-A Git history audit confirmed that Terraform state and variable files were never tracked.
-
-The repository also contains no tracked `.env`, secret, credential, password, or Terraform state files.
-
----
-
-# Environment Configuration
-
-Database configuration uses environment variables rather than requiring credentials to be hardcoded into the application.
-
-Example:
-
-```yaml
-spring:
-  datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/devflow}
-    username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:postgres}
-```
-
-For production deployments, environment-specific values are supplied externally.
-
----
-
-# CI/CD Workflow
-
-The complete DevFlow workflow is:
-
-```text
-1. Developer pushes code
-          │
-          ▼
-2. GitHub repository
-          │
-          ▼
-3. Jenkins checkout
-          │
-          ▼
-4. Gradle build
-          │
-          ▼
-5. Automated tests
-          │
-          ▼
-6. Docker Buildx
-          │
-          ├───────────────┐
-          │               │
-          ▼               ▼
-      AMD64             ARM64
-          │               │
-          └───────┬───────┘
-                  ▼
-7. Multi-architecture image
-                  │
-                  ▼
-8. Azure Container Registry
-                  │
-                  ▼
-9. Azure DevOps Pipeline
-                  │
-                  ▼
-10. Azure App Service
-                  │
-                  ▼
-11. Production health check
-                  │
-                  ▼
-12. DevFlow application running
-```
-
----
-
-# Validation
-
-The final production-readiness validation covered:
-
-## Repository
-
-```text
-Git status: clean
-Branch: develop
-Remote: synchronized
-```
-
-## Backend
-
-```text
-Gradle tests: PASS
-```
-
-## Terraform
-
-```text
-terraform validate: PASS
-terraform fmt -check: PASS
-```
-
-## Docker
-
-```text
-docker compose config -q: PASS
-All local platform services: RUNNING
-PostgreSQL: HEALTHY
-```
-
-## Resilience
-
-```text
-Backend container restart: PASS
-Backend health after restart: HTTP 200
-PostgreSQL restart: PASS
-PostgreSQL health after restart: HEALTHY
-Backend recovery after database restart: HTTP 200
-Database API verification: HTTP 200
-```
-
-## Monitoring
-
-```text
-Prometheus backend target: UP
-Prometheus datasource: CONFIGURED
-Grafana dashboard: AVAILABLE
-Grafana health: HTTP 200
-Grafana database: OK
-```
-
-## Azure
-
-```text
-App Service: Running
-Health endpoint: HTTP 200
-Prometheus endpoint: HTTP 200
-API endpoint: HTTP 200
-```
-
-## Security
-
-```text
-Actuator info: not exposed
-Actuator metrics: not exposed
-Terraform state: not tracked
-Terraform variables: not tracked
-Secret-named files: not tracked
-ACR admin authentication: disabled
-```
-
-## CI/CD
-
-```text
-Jenkins build: PASS
-Jenkins tests: PASS
-Multi-architecture image: PUBLISHED
-Azure Container Registry: VERIFIED
-Azure App Service: RUNNING
-Deployment health check: PASS
-```
-
----
-
-# Project Structure
+## Project Structure
 
 ```text
 devflow/
@@ -995,11 +416,13 @@ devflow/
 │   └── settings.gradle.kts
 │
 ├── azure/
-│   └── pipelines/
-│       └── azure-pipelines.yml
+│   ├── pipelines/
+│   │   └── azure-pipelines.yml
+│   └── templates/
 │
 ├── docker/
-│   └── compose/
+│   ├── development/
+│   └── production/
 │
 ├── infrastructure/
 │   ├── bicep/
@@ -1019,6 +442,12 @@ devflow/
 │   ├── grafana/
 │   └── prometheus/
 │
+├── scripts/
+│   ├── build.sh
+│   ├── clean.sh
+│   ├── run.sh
+│   └── stop.sh
+│
 ├── Jenkinsfile
 ├── docker-compose.yml
 ├── README.md
@@ -1027,37 +456,110 @@ devflow/
 
 ---
 
-# Useful Commands
+## Environment Configuration
 
-## Git
+The backend reads its database configuration from environment variables, with local-friendly defaults so it also runs out of the box without any extra setup.
 
-```bash
-git status
-git log --oneline -10
-git pull origin develop
-git push origin develop
+| Variable            | Used by                   | Default                                    |
+| ------------------- | ------------------------- | ------------------------------------------ |
+| `DB_URL`            | backend                   | `jdbc:postgresql://localhost:5432/devflow` |
+| `DB_USERNAME`       | backend                   | `postgres`                                 |
+| `DB_PASSWORD`       | backend                   | `postgres`                                 |
+| `POSTGRES_USER`     | docker-compose (postgres) | `postgres`                                 |
+| `POSTGRES_PASSWORD` | docker-compose (postgres) | `postgres`                                 |
+
+`application.yaml` example:
+
+```yaml
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/devflow}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
 ```
 
-## Backend
+For production, these values are supplied externally (Azure App Service configuration) rather than committed to the repository.
 
-```bash
-cd backend
-
-./gradlew clean test
-./gradlew clean build
-./gradlew bootRun
-```
+---
 
 ## Docker
 
+The backend uses a multi-stage Docker build (build stage on `eclipse-temurin:21-jdk`, runtime on `eclipse-temurin:21-jre`).
+
+Build locally:
+
+```bash
+cd backend
+docker build -t devflow-backend:local .
+```
+
+Run:
+
+```bash
+docker run -p 8081:8081 devflow-backend:local
+```
+
+### Docker Compose
+
+Validate the Compose configuration:
+
 ```bash
 docker compose config -q
+```
+
+Start the complete local platform (backend, PostgreSQL, Prometheus, Grafana):
+
+```bash
 docker compose up -d
+```
+
+Check running services:
+
+```bash
 docker compose ps
+```
+
+Stop the environment:
+
+```bash
 docker compose down
 ```
 
-## Terraform
+---
+
+## Jenkins CI Pipeline
+
+Jenkins provides the continuous integration layer. The pipeline:
+
+```text
+Checkout → Gradle Build → Automated Tests → Docker Buildx → Multi-Architecture Image → Azure Container Registry → Image Verification
+```
+
+It builds `linux/amd64` and `linux/arm64` images using Docker Buildx and pushes to:
+
+```text
+mehdihsb.azurecr.io/devflow-backend
+```
+
+tagged as `:<BUILD_NUMBER>` and `:latest`. The pipeline then verifies the published image with:
+
+```bash
+docker buildx imagetools inspect
+```
+
+---
+
+## Infrastructure as Code (Terraform)
+
+Azure infrastructure is managed with Terraform, in `infrastructure/terraform/`:
+
+```text
+main.tf
+variables.tf
+outputs.tf
+versions.tf
+.gitignore
+```
 
 ```bash
 cd infrastructure/terraform
@@ -1067,7 +569,171 @@ terraform validate
 terraform plan
 ```
 
-## Azure
+Terraform state and variable files are intentionally excluded from Git:
+
+```text
+terraform.tfstate
+terraform.tfstate.backup
+terraform.tfvars
+```
+
+This keeps sensitive infrastructure state and configuration out of the repository.
+
+---
+
+## Azure Deployment
+
+### Azure Container Registry
+
+```text
+Registry:   mehdihsb.azurecr.io
+Repository: devflow-backend
+```
+
+Check available images:
+
+```bash
+az acr repository show-tags \
+  --name mehdihsb \
+  --repository devflow-backend \
+  --orderby time_desc \
+  --output table
+```
+
+### Azure App Service
+
+```text
+App:            azure-cicd-mehdi
+Resource group: rg-cicd-spain
+URL:             https://azure-cicd-mehdi.azurewebsites.net
+```
+
+### Azure DevOps Deployment
+
+Azure Pipelines deploys the latest image from ACR to Azure App Service:
+
+```text
+Jenkins (build + test) → Docker Buildx → Azure Container Registry → Azure DevOps Pipeline (AzureWebAppContainer) → Azure App Service
+```
+
+After deployment, the pipeline runs a health check:
+
+```bash
+curl https://azure-cicd-mehdi.azurewebsites.net/actuator/health
+```
+
+and only considers the deployment successful once the app returns:
+
+```json
+{ "status": "UP" }
+```
+
+---
+
+## Monitoring
+
+DevFlow exposes Prometheus metrics through Spring Boot Actuator.
+
+```text
+Local:      /actuator/prometheus
+Production: https://azure-cicd-mehdi.azurewebsites.net/actuator/prometheus
+```
+
+Example metrics: `application_ready_time_seconds`, `hikaricp_connections`, `http_server_requests`, `jvm_memory`, `jvm_threads`, `process_cpu`, `system_cpu`, and more.
+
+Grafana is included for visualization, provisioned with a Prometheus datasource and a **DevFlow Backend Status** dashboard.
+
+Health endpoint:
+
+```text
+Local:      /actuator/health
+Production: https://azure-cicd-mehdi.azurewebsites.net/actuator/health
+```
+
+Expected response:
+
+```json
+{
+  "groups": ["liveness", "readiness"],
+  "status": "UP"
+}
+```
+
+---
+
+## Security Hardening
+
+* **Actuator exposure** — only `health` and `prometheus` are exposed (`info` and `metrics` are not):
+
+  ```yaml
+  management:
+    endpoints:
+      web:
+        exposure:
+          include: health,prometheus
+  ```
+* **ACR authentication** — ACR admin authentication is disabled; deployment uses Azure identity-based authentication (least privilege) instead.
+* **Grafana authentication** — Grafana's admin account is used for provisioning and dashboard verification, not exposed publicly by default.
+* **Terraform secrets** — `*.tfstate`, `*.tfstate.*`, and `*.tfvars` are gitignored. The repository does not track any `.env`, secret, credential, or password files.
+
+---
+
+## Troubleshooting
+
+| Symptom                                                               | Likely cause / fix                                                                                                                                   |
+| --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Port 8081/5432/9090/3000 already in use`                             | Another process is using the port. Stop it, or change the host-side port mapping in `docker-compose.yml` (e.g. `"8082:8081"`).                       |
+| `./gradlew: Permission denied`                                        | Make the wrapper executable: `chmod +x gradlew`.                                                                                                     |
+| Backend can't connect to PostgreSQL                                   | Make sure `postgres` is running and healthy first (`docker compose ps`), or that `DB_URL`/`DB_USERNAME`/`DB_PASSWORD` point to a reachable database. |
+| `docker compose up` fails on `depends_on: condition: service_healthy` | Your Docker/Compose version may be too old. Update Docker Desktop or the Compose plugin.                                                             |
+| Docker Buildx errors in the Jenkins pipeline                          | The Buildx builder instance may need to be recreated: `docker buildx create --use`.                                                                  |
+| Changes to `application.yaml` aren't picked up                        | Restart the backend (`./gradlew bootRun` or `docker compose restart backend`) — it isn't hot-reloaded by default.                                    |
+
+If you hit something not listed here, please open an issue with the command you ran and the full output.
+
+---
+
+## Useful Commands
+
+### Git
+
+```bash
+git status
+git log --oneline -10
+git pull origin develop
+git push origin develop
+```
+
+### Backend
+
+```bash
+cd backend
+
+./gradlew clean test
+./gradlew clean build
+./gradlew bootRun
+```
+
+### Docker
+
+```bash
+docker compose config -q
+docker compose up -d
+docker compose ps
+docker compose down
+```
+
+### Terraform
+
+```bash
+cd infrastructure/terraform
+
+terraform fmt -check
+terraform validate
+terraform plan
+```
+
+### Azure
 
 ```bash
 az login
@@ -1084,39 +750,152 @@ az webapp show \
   --query "{name:name,state:state,hostName:defaultHostName}"
 ```
 
-## Production Health
+### Production Health & API
 
 ```bash
 curl https://azure-cicd-mehdi.azurewebsites.net/actuator/health
-```
-
-## Production API
-
-```bash
 curl https://azure-cicd-mehdi.azurewebsites.net/api/build-tasks
 ```
 
 ---
 
-# Git Branch Strategy
+## Git Branch Strategy
 
-The project uses:
-
-```text
-develop
-```
-
-as the active development branch.
-
-The repository is maintained through Git commits and remote synchronization with GitHub.
+`develop` is the active development branch. The repository is maintained through regular Git commits and kept synchronized with GitHub.
 
 ---
 
-# Current Release State
+## Contributing
 
-The project has completed its final end-to-end validation and portfolio readiness review.
+Contributions and suggestions are welcome:
 
-Latest commit:
+1. Fork the repository and create a feature branch from `develop`.
+2. Make your changes, following the existing layered backend structure (Controller → DTO → Mapper → Service → Repository).
+3. Run the backend test suite before opening a pull request:
+
+   ```bash
+   cd backend
+   ./gradlew clean test
+   ```
+4. Open a pull request against `develop` with a clear description of the change.
+
+For larger changes (new infrastructure, new pipeline stages), please open an issue first to discuss the approach.
+
+---
+
+## Future Improvements
+
+Potential future improvements (optional, not required for the current release):
+
+* API authentication and authorization (Spring Security)
+* Azure Key Vault integration
+* Container vulnerability scanning
+* Automated dependency scanning
+* SonarQube or SonarCloud integration
+* Automated semantic versioning
+* Pull-request quality gates
+* Blue/green deployments and rollback automation
+* Azure Application Insights integration
+* Automated Grafana alerting
+* Kubernetes / AKS deployment
+* Horizontal application scaling
+* Database backup automation
+
+---
+
+## Project Validation Report
+
+This section is a historical record from the project's final end-to-end validation pass — kept for transparency and as a portfolio reference. It is **not** required reading to use the project; see [Quick Start](#quick-start) instead.
+
+<details>
+<summary>Expand full validation report</summary>
+
+### Repository
+
+```text
+Git status: clean
+Branch: develop
+Remote: synchronized
+```
+
+### Backend
+
+```text
+Gradle tests: PASS
+```
+
+### Terraform
+
+```text
+terraform validate: PASS
+terraform fmt -check: PASS
+```
+
+### Docker
+
+```text
+docker compose config -q: PASS
+All local platform services: RUNNING
+PostgreSQL: HEALTHY
+```
+
+### Resilience
+
+```text
+Backend container restart: PASS
+Backend health after restart: HTTP 200
+PostgreSQL restart: PASS
+PostgreSQL health after restart: HEALTHY
+Backend recovery after database restart: HTTP 200
+Database API verification: HTTP 200
+```
+
+### Monitoring
+
+```text
+Prometheus backend target: UP
+Prometheus datasource: CONFIGURED
+Grafana dashboard: AVAILABLE
+Grafana health: HTTP 200
+Grafana database: OK
+```
+
+### Azure
+
+```text
+App Service: Running
+Health endpoint: HTTP 200
+Prometheus endpoint: HTTP 200
+API endpoint: HTTP 200
+```
+
+### Security
+
+```text
+Actuator info: not exposed
+Actuator metrics: not exposed
+Terraform state: not tracked
+Terraform variables: not tracked
+Secret-named files: not tracked
+ACR admin authentication: disabled
+```
+
+### CI/CD
+
+```text
+Jenkins build: PASS
+Jenkins tests: PASS
+Multi-architecture image: PUBLISHED
+Azure Container Registry: VERIFIED
+Azure App Service: RUNNING
+Deployment health check: PASS
+```
+
+### Current Release State
+
+The project completed its final end-to-end validation and portfolio-readiness review.
+
+Latest commit at that time:
 
 ```text
 a71cd64 Improve global API error handling
@@ -1129,110 +908,34 @@ develop...origin/develop
 working tree clean
 ```
 
-The project successfully passed:
+The project successfully passed: backend tests, Terraform formatting and configuration validation, Docker Compose validation, Git repository/diff/security audit, Jenkins CI validation, automated PostgreSQL integration-test environment, automatic Jenkins Docker Buildx builder recovery, multi-architecture Docker builds and publishing (`linux/amd64`, `linux/arm64`), Azure Container Registry and App Service validation, production health validation, Prometheus/Grafana validation, Actuator security validation, and backend/PostgreSQL recovery validation.
 
-* Backend tests
-* Terraform formatting validation
-* Terraform configuration validation
-* Docker Compose validation
-* Git repository validation
-* Git diff validation
-* Git security audit
-* Jenkins CI validation
-* Automated PostgreSQL integration-test environment
-* Automatic Jenkins Docker Buildx builder recovery
-* Multi-architecture Docker builds for `linux/amd64` and `linux/arm64`
-* Multi-architecture Docker image publishing
-* Azure Container Registry validation
-* Azure App Service validation
-* Production health validation
-* Prometheus endpoint validation
-* Prometheus target validation
-* Grafana authentication and health validation
-* Grafana datasource and dashboard validation
-* Actuator security validation
-* Backend container recovery validation
-* PostgreSQL recovery validation
-* End-to-end CI/CD validation
+</details>
 
----
-
-# Future Improvements
-
-Potential future improvements include:
-
-* API authentication and authorization
-* Spring Security integration
-* Azure Key Vault integration
-* Container vulnerability scanning
-* Automated dependency scanning
-* SonarQube or SonarCloud integration
-* Automated semantic versioning
-* Pull-request quality gates
-* Blue/green deployments
-* Deployment rollback automation
-* Azure Application Insights integration
-* Automated Grafana alerting
-* Kubernetes / AKS deployment
-* Horizontal application scaling
-* Database backup automation
-
-These are optional extensions and are not required for the current release.
-
----
-
-# Project Objectives Achieved
+### Project Objectives Achieved
 
 DevFlow demonstrates the implementation of a complete DevOps platform covering:
 
 ```text
-Application Development
-        +
-Containerization
-        +
-Continuous Integration
-        +
-Multi-Architecture Builds
-        +
-Container Registry
-        +
-Infrastructure as Code
-        +
-Continuous Deployment
-        +
-Cloud Hosting
-        +
-Monitoring
-        +
-Security Hardening
-        +
-Resilience Testing
-        +
-Automated Validation
+Application Development + Containerization + Continuous Integration
++ Multi-Architecture Builds + Container Registry + Infrastructure as Code
++ Continuous Deployment + Cloud Hosting + Monitoring
++ Security Hardening + Resilience Testing + Automated Validation
 ```
 
-The project therefore goes beyond a simple Spring Boot application and demonstrates practical integration of software engineering, containerization, CI/CD, cloud infrastructure, observability, security practices, and resilience validation.
+The project goes beyond a simple Spring Boot application, demonstrating practical integration of software engineering, containerization, CI/CD, cloud infrastructure, observability, security practices, and resilience validation.
 
 ---
 
-# Author
+## Author
 
 **Mehdi Hasbellaoui**
 
-GitHub:
-
-```text
-https://github.com/Mehdi-MI
-```
-
-Repository:
-
-```text
-https://github.com/Mehdi-MI/devflow
-```
+* GitHub: https://github.com/Mehdi-MI
+* Repository: https://github.com/Mehdi-MI/devflow
 
 ---
 
-# License
+## License
 
-This project is licensed under the terms specified in `LICENSE`.
+This project is licensed under the terms specified in [`LICENSE`](./LICENSE).

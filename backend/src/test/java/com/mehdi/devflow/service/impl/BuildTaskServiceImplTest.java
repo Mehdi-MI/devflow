@@ -17,6 +17,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
 import java.util.Optional;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -219,6 +220,97 @@ class BuildTaskServiceImplTest {
         assertEquals(BuildStatus.RUNNING, task.getStatus());
 
         assertNull(task.getLogs());
+
+        verify(repository).save(task);
+    }
+
+    @Test
+    void updateTask_shouldSetStartedAtWhenStatusChangesToRunning() {
+        UpdateBuildTaskRequest request = new UpdateBuildTaskRequest();
+        request.setStatus(BuildStatus.RUNNING);
+
+        when(repository.findById(taskId)).thenReturn(Optional.of(task));
+        when(repository.save(task)).thenReturn(task);
+        when(mapper.toResponse(task)).thenReturn(response);
+
+        assertNull(task.getStartedAt());
+
+        service.updateTask(taskId, request);
+
+        assertNotNull(task.getStartedAt());
+        assertEquals(BuildStatus.RUNNING, task.getStatus());
+        assertNull(task.getCompletedAt());
+
+        verify(repository).save(task);
+    }
+
+    @Test
+    void updateTask_shouldSetCompletedAtWhenStatusChangesToSuccess() {
+        LocalDateTime startedAt = LocalDateTime.now().minusMinutes(5);
+        task.setStatus(BuildStatus.RUNNING);
+        task.setStartedAt(startedAt);
+
+        UpdateBuildTaskRequest request = new UpdateBuildTaskRequest();
+        request.setStatus(BuildStatus.SUCCESS);
+
+        when(repository.findById(taskId)).thenReturn(Optional.of(task));
+        when(repository.save(task)).thenReturn(task);
+        when(mapper.toResponse(task)).thenReturn(response);
+
+        service.updateTask(taskId, request);
+
+        assertEquals(BuildStatus.SUCCESS, task.getStatus());
+        assertEquals(startedAt, task.getStartedAt());
+        assertNotNull(task.getCompletedAt());
+        assertTrue(task.getCompletedAt().isAfter(startedAt));
+
+        verify(repository).save(task);
+    }
+
+    @Test
+    void updateTask_shouldSetCompletedAtWhenStatusChangesToFailed() {
+        LocalDateTime startedAt = LocalDateTime.now().minusMinutes(5);
+        task.setStatus(BuildStatus.RUNNING);
+        task.setStartedAt(startedAt);
+
+        UpdateBuildTaskRequest request = new UpdateBuildTaskRequest();
+        request.setStatus(BuildStatus.FAILED);
+
+        when(repository.findById(taskId)).thenReturn(Optional.of(task));
+        when(repository.save(task)).thenReturn(task);
+        when(mapper.toResponse(task)).thenReturn(response);
+
+        service.updateTask(taskId, request);
+
+        assertEquals(BuildStatus.FAILED, task.getStatus());
+        assertEquals(startedAt, task.getStartedAt());
+        assertNotNull(task.getCompletedAt());
+        assertTrue(task.getCompletedAt().isAfter(startedAt));
+
+        verify(repository).save(task);
+    }
+
+    @Test
+    void updateTask_shouldNotOverwriteExistingTimestamps() {
+        LocalDateTime originalStartedAt = LocalDateTime.now().minusMinutes(10);
+        LocalDateTime originalCompletedAt = LocalDateTime.now().minusMinutes(5);
+
+        task.setStatus(BuildStatus.SUCCESS);
+        task.setStartedAt(originalStartedAt);
+        task.setCompletedAt(originalCompletedAt);
+
+        UpdateBuildTaskRequest request = new UpdateBuildTaskRequest();
+        request.setStatus(BuildStatus.SUCCESS);
+
+        when(repository.findById(taskId)).thenReturn(Optional.of(task));
+        when(repository.save(task)).thenReturn(task);
+        when(mapper.toResponse(task)).thenReturn(response);
+
+        service.updateTask(taskId, request);
+
+        assertEquals(originalStartedAt, task.getStartedAt());
+        assertEquals(originalCompletedAt, task.getCompletedAt());
+        assertEquals(BuildStatus.SUCCESS, task.getStatus());
 
         verify(repository).save(task);
     }

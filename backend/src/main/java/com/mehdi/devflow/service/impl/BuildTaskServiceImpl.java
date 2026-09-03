@@ -3,6 +3,7 @@ package com.mehdi.devflow.service.impl;
 import com.mehdi.devflow.dto.BuildTaskResponse;
 import com.mehdi.devflow.dto.CreateBuildTaskRequest;
 import com.mehdi.devflow.dto.UpdateBuildTaskRequest;
+import com.mehdi.devflow.enums.BuildStatus;
 import com.mehdi.devflow.entity.BuildTask;
 import com.mehdi.devflow.exception.ResourceNotFoundException;
 import com.mehdi.devflow.mapper.BuildTaskMapper;
@@ -15,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Service
@@ -86,9 +88,19 @@ public class BuildTaskServiceImpl implements BuildTaskService {
         }
 
         if (request.getStatus() != null) {
-            task.setStatus(request.getStatus());
-        }
+            BuildStatus newStatus = request.getStatus();
 
+            if (newStatus == BuildStatus.RUNNING && task.getStartedAt() == null) {
+                task.setStartedAt(LocalDateTime.now());
+            }
+
+            if ((newStatus == BuildStatus.SUCCESS || newStatus == BuildStatus.FAILED)
+                    && task.getCompletedAt() == null) {
+                task.setCompletedAt(LocalDateTime.now());
+            }
+
+            task.setStatus(newStatus);
+        }
         if (request.getLogs() != null) {
             task.setLogs(request.getLogs());
         }

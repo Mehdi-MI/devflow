@@ -191,6 +191,61 @@ class BuildTaskServiceIntegrationTest {
                 "Build started successfully.",
                 updatedTask.getLogs()
         );
+
+        // Verify RUNNING transition automatically sets startedAt
+        assertNotNull(
+                updatedTask.getStartedAt(),
+                "startedAt should be set when task enters RUNNING"
+        );
+        assertNull(
+                updatedTask.getCompletedAt(),
+                "completedAt should remain null while task is RUNNING"
+        );
+
+        // Move the task from RUNNING to SUCCESS
+        UpdateBuildTaskRequest successRequest =
+                new UpdateBuildTaskRequest();
+
+        successRequest.setStatus(BuildStatus.SUCCESS);
+        successRequest.setLogs("Build completed successfully.");
+
+        BuildTaskResponse successResponse =
+                service.updateTask(
+                        savedTask.getId(),
+                        successRequest
+                );
+
+        assertEquals(
+                BuildStatus.SUCCESS,
+                successResponse.getStatus()
+        );
+        assertNotNull(
+                successResponse.getCompletedAt(),
+                "completedAt should be set when task succeeds"
+        );
+
+        // Reload from PostgreSQL and verify timestamps were persisted
+        BuildTask completedTask =
+                repository.findById(savedTask.getId())
+                        .orElseThrow();
+
+        assertEquals(
+                BuildStatus.SUCCESS,
+                completedTask.getStatus()
+        );
+        assertNotNull(
+                completedTask.getStartedAt(),
+                "startedAt should be persisted in PostgreSQL"
+        );
+        assertNotNull(
+                completedTask.getCompletedAt(),
+                "completedAt should be persisted in PostgreSQL"
+        );
+        assertTrue(
+                completedTask.getCompletedAt()
+                        .isAfter(completedTask.getStartedAt()),
+                "completedAt should be after startedAt"
+        );
     }
 
     @Test
